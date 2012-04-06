@@ -7,6 +7,7 @@ use Guard ();
 use Cwd;
 use File::Temp qw( tempdir );
 use File::Spec;
+use utf8;
 
 __PACKAGE__->mk_accessors( qw( repository workdir binary cleanup ) );
 
@@ -42,20 +43,52 @@ sub do {
     my ( $self, @cmd ) = @_;
     my $git = $self->binary;
     my $command = join ' ', $git, @cmd;
-    return `$command`;
+    warn $command;
+    return scalar `$command`;
 }
 
 sub clone {
     my $self = shift;
-    my $guard = $self->into_workdir;
-    return $self->do( 'clone', '--bare', $self->repository );
+    return $self->do( 'clone', '--bare', $self->repository, $self->workdir );
 }
 
-sub logs {
-    my $self = shift;
+sub log {
+    my ( $self, @options ) = @_;
     my $guard = $self->into_workdir;
-    warn getcwd;
-    return $self->do( 'log' );
+    my $raw = $self->do( 'log', @options );
+    my @logs = $raw =~ /commit\s([0-9a-f]{40})\nAuthor:\s(.+?)\nDate:\s+(.+?)\n\n\s+(.+?)\n/msg;
+    my @rtn;
+    while ( @logs ) {
+        my $log = {
+            commit => shift @logs,
+            author => shift @logs,
+            date => shift @logs,
+            message => shift @logs,
+        };
+        push @rtn, $log;
+    }
+    return @rtn;
+}
+
+sub show {
+    my ( $self, $commit ) = @_;
+    my $guard = $self->into_workdir;
+    my $raw = $self->do( 'show', $commit );
+    my $rtn = {};
+    ( $rtn->{commit}, $rtn->{author}, 
+      $rtn->{date}, $rtn->{message}, 
+      $rtn->{differ} 
+    ) = $raw =~ /commit\s([0-9a-f]{40})\nAuthor:\s(.+?)\nDate:\s+(.+?)\n\n\s+(.+?)\n\n(.+)/msg;
+    $rtn->{differ} = [ map { 'diff --git '.$_ } split /diff --git /, $rtn->{differ} ];
+    shift @{$rtn->{differ}};
+    for my $diff ( @{$rtn->{differ}} ) {
+        $diff = { 
+            code => $diff, 
+            file => undef,
+        };
+        ( $diff->{file} ) = $diff->{code} =~ /diff --git a\/(.+?)\s/;
+    }
+    return $rtn;
 }
 
 1;
