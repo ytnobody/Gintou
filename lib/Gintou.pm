@@ -96,7 +96,7 @@ __END__
 
 =head1 NAME
 
-Gintou -
+Gintou - Git repository explorer class
 
 =head1 SYNOPSIS
 
