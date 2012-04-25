@@ -43,7 +43,6 @@ sub do {
     my ( $self, @cmd ) = @_;
     my $git = $self->binary;
     my $command = join ' ', $git, @cmd;
-    warn $command;
     return scalar `$command`;
 }
 
